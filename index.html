@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#000000" />
 <title>Traje a tu Medida · Mentoría con Pipe</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%23ff8a40'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%23ff8a40'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"></script>
 <style>
   :root{
     --bg:#000;
@@ -99,15 +101,16 @@
   @media (max-width:1024px){.hud{display:none}}
 
   /* ========== STAGE ========== */
-  #stage{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;perspective:1400px}
-  .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;will-change:transform,opacity;overflow-y:auto;overflow-x:hidden}
+  #stage{position:fixed;inset:0;z-index:10;perspective:1400px}
+  /* flex-column + margin:auto en card-wrap = centra cuando cabe, scrollea desde arriba cuando no (sin cortar) */
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:96px 24px 56px;opacity:0;pointer-events:none;will-change:transform,opacity;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
   .scene.active{opacity:1;pointer-events:auto}
   .scene::-webkit-scrollbar{width:6px}
   .scene::-webkit-scrollbar-track{background:transparent}
   .scene::-webkit-scrollbar-thumb{background:rgba(255,138,64,.2);border-radius:3px}
 
   /* ========== CARD ========== */
-  .card-wrap{position:relative;width:100%;max-width:720px;margin:0 auto;padding:20px 0}
+  .card-wrap{position:relative;width:100%;max-width:720px;margin:auto;padding:8px 0}
   @media (min-width:1280px){.card-wrap{max-width:780px}}
   @media (min-width:1600px){.card-wrap{max-width:840px}}
   .card{
@@ -198,6 +201,15 @@
     box-shadow:0 0 0 1px rgba(255,138,64,.5),0 14px 48px -10px rgba(255,138,64,.55),inset 0 1px 0 rgba(255,255,255,.3);
   }
   .card-cta.primary:hover{filter:brightness(1.08)}
+  .card-cta:active{transform:translateY(0) scale(.985);transition-duration:.08s}
+  .small-btn:active{transform:scale(.96);transition-duration:.08s}
+  /* Botones dentro de una fila: que el flex los dimensione (no width:100% del .card-cta base),
+     si no, el botón "Atrás" (flex:0 0 auto + shrink:0) se come toda la fila. */
+  .btn-row-mobile{align-items:stretch}
+  .btn-row-mobile .card-cta{width:auto;margin-top:0}
+  @media (prefers-reduced-motion:reduce){
+    .card-cta:active,.small-btn:active{transform:none}
+  }
 
   .card-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px}
 
@@ -281,8 +293,7 @@
 
   /* ========== TABLET ========== */
   @media (max-width:1024px){
-    #stage{padding:90px 24px 40px}
-    .scene{padding:90px 24px 40px;align-items:flex-start}
+    .scene{padding:88px 24px 48px}
   }
 
   /* ========== MOBILE ========== */
@@ -292,9 +303,8 @@
     .progress-track{width:72px}
     .step-count-text{display:none}
     .save-tag span:not(.ping){display:none}
-    #stage{padding:64px 12px 24px;align-items:flex-start}
-    .scene{padding:64px 12px 24px;align-items:flex-start}
-    .card-wrap{padding:8px 0}
+    .scene{padding:72px 14px 36px}
+    .card-wrap{padding:4px 0}
     .card{padding:26px 20px;border-radius:22px}
     .intro-card,.block-card,.audio-card,.final-card{padding:32px 22px}
     .q-card{padding:26px 20px}
@@ -306,7 +316,7 @@
     .step-sub{font-size:13px}
     .keyhint{display:none}
     .btn-row-mobile{flex-direction:column!important}
-    .btn-row-mobile button{width:100%}
+    .btn-row-mobile .card-cta{width:100%}
     .secondary-actions{gap:6px}
     .small-btn{font-size:10px;padding:9px 14px}
     .intro-card{padding:36px 22px}
@@ -649,6 +659,8 @@ screens.push({ type:'final' });
    ============================================================ */
 const STORAGE_KEY = 'traje-a-tu-medida-v3';
 let stepIndex = 0;
+let navDir = 1; // 1 = avanza, -1 = retrocede (para dirección de la animación)
+const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let answers = JSON.parse(localStorage.getItem(STORAGE_KEY + '-answers') || '{}');
 let audiosDone = JSON.parse(localStorage.getItem(STORAGE_KEY + '-audios') || '{}');
 const savedStep = parseInt(localStorage.getItem(STORAGE_KEY + '-step') || '0', 10);
@@ -855,27 +867,51 @@ function render(){
     saveToSupabase();
   }
 
-  // animaciones de salida del anterior + entrada del nuevo
-  const prev = stage.querySelectorAll('.scene.active');
+  // ===== Transiciones con Motion (motor vanilla de Framer Motion) =====
+  const M = window.Motion;
+  const prev = Array.from(stage.querySelectorAll('.scene.active'));
+  const animated = M && !REDUCE;
+
+  // salida del anterior (en la dirección de navegación). El removido se hace
+  // por timeout para no depender de la API de promesas de Motion.
   prev.forEach(p => {
-    gsap.to(p, {
-      opacity:0, y:-30, scale:0.98, duration:0.45, ease:'power3.in',
-      onComplete:()=>p.remove()
-    });
+    p.classList.remove('active');
+    if(animated){
+      try { M.animate(p,
+        { opacity:[1,0], y:[0,-36*navDir], scale:[1,0.985] },
+        { duration:0.34, ease:[0.4,0,1,1] }
+      ); } catch(e){}
+      setTimeout(()=>p.remove(), 380);
+    } else { p.remove(); }
   });
 
+  // entrada del nuevo. Si Motion falla por cualquier motivo, mostramos la
+  // escena de una (el formulario nunca queda invisible).
+  scene.style.opacity = animated ? '0' : '1';
   stage.appendChild(scene);
-  gsap.fromTo(scene,
-    { opacity:0, y:40, scale:0.98 },
-    { opacity:1, y:0, scale:1, duration:0.85, ease:'expo.out', delay:0.15 }
-  );
 
-  // stagger entrada de elementos internos
-  const inner = scene.querySelectorAll('.card > *, .step-zone > *');
-  gsap.from(inner, {
-    y:18, opacity:0, duration:0.7, ease:'expo.out',
-    stagger:{ each:0.04 }, delay:0.3
-  });
+  if(animated){
+    try {
+      M.animate(scene,
+        { opacity:[0,1], y:[46*navDir,0], scale:[0.985,1] },
+        { type:'spring', stiffness:88, damping:18, delay:0.05 }
+      );
+      // stagger interno — excluye .step-circle (tiene translateX propio que no debemos pisar)
+      const inner = [
+        ...scene.querySelectorAll('.card > *'),
+        ...scene.querySelectorAll('.step-zone > *:not(.step-circle)')
+      ];
+      inner.forEach((el, i) => {
+        M.animate(el, { opacity:[0,1], y:[18,0] },
+          { type:'spring', stiffness:150, damping:19, delay:0.16 + i*0.045 });
+      });
+      const circle = scene.querySelector('.step-circle');
+      if(circle) M.animate(circle, { opacity:[0,1] }, { duration:0.5, delay:0.22 });
+    } catch(e){
+      console.warn('Motion falló, muestro sin animación:', e.message);
+      scene.style.opacity = '1';
+    }
+  }
 
   // wire
   scene.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', goNext));
@@ -895,10 +931,10 @@ function render(){
    NAV
    ============================================================ */
 function goNext(){
-  if(stepIndex < screens.length - 1){ stepIndex++; render(); }
+  if(stepIndex < screens.length - 1){ navDir = 1; stepIndex++; render(); }
 }
 function goPrev(){
-  if(stepIndex > 0){ stepIndex--; render(); }
+  if(stepIndex > 0){ navDir = -1; stepIndex--; render(); }
 }
 function updateProgress(){
   const total = screens.length - 1;
@@ -1027,7 +1063,7 @@ function resetForm(){
   localStorage.removeItem(STORAGE_KEY + '-answers');
   localStorage.removeItem(STORAGE_KEY + '-step');
   localStorage.removeItem(STORAGE_KEY + '-audios');
-  answers = {}; audiosDone = {}; stepIndex = 0;
+  answers = {}; audiosDone = {}; stepIndex = 0; navDir = 1;
   render();
 }
 
@@ -1063,8 +1099,10 @@ window.addEventListener('keydown', e => {
 /* ============================================================
    INIT
    ============================================================ */
-Aura.init();
-CodeRain.init();
+// Los fondos (WebGL/canvas) son decorativos: si fallan (WebGL bloqueado,
+// dispositivo viejo) NO deben tumbar el formulario.
+try { Aura.init(); } catch(e){ console.warn('Aura no disponible:', e.message); document.getElementById('aura-canvas').style.display='none'; }
+try { CodeRain.init(); } catch(e){ console.warn('CodeRain no disponible:', e.message); }
 if(savedStep > 0 && (Object.keys(answers).length || Object.keys(audiosDone).length)){
   stepIndex = Math.min(savedStep, screens.length - 1);
 }
