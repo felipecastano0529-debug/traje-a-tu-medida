@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>Traje a tu Medida · Mentoría con Pipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  :root{
+    --bg:#000;
+    --bg-2:#050402;
+    --amber:#ff8a40;
+    --amber-soft:#ffb070;
+    --amber-warm:#ff6a20;
+    --amber-deep:#7a3a18;
+    --amber-glow:rgba(255,138,64,.45);
+    --amber-glow-soft:rgba(255,138,64,.15);
+    --glass:rgba(18,12,8,.55);
+    --glass-2:rgba(28,20,14,.7);
+    --glass-deep:rgba(10,7,4,.85);
+    --border:rgba(255,138,64,.16);
+    --border-strong:rgba(255,138,64,.35);
+    --text:#f7f3ec;
+    --text-2:#b8b0a4;
+    --muted:#6a635a;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --easing:cubic-bezier(.22,1,.36,1);
+    --easing-soft:cubic-bezier(.4,.0,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow:hidden}
+  body{position:fixed;inset:0}
+  ::selection{background:var(--amber);color:#000}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,textarea{font-family:inherit;color:inherit;outline:none}
+
+  /* ========== BACKGROUND LAYERS ========== */
+  #aura-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
+  #code-canvas{position:fixed;inset:0;z-index:1;pointer-events:none;width:100%;height:100%;opacity:.45;mix-blend-mode:screen}
+  #vignette{
+    position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,138,64,.18), transparent 50%),
+      radial-gradient(ellipse 100% 80% at 50% 50%, transparent 0%, rgba(0,0,0,.35) 60%, rgba(0,0,0,.85) 100%);
+  }
+  #grain{
+    position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.04;
+    background-image:url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode:overlay;
+  }
+
+  /* ========== CURSOR ========== */
+  .cursor-ring{
+    position:fixed;left:0;top:0;z-index:1000;pointer-events:none;
+    width:40px;height:40px;border:1px solid rgba(255,138,64,.4);border-radius:50%;
+    transform:translate(-50%,-50%);
+    transition:width .35s var(--easing),height .35s var(--easing),background .35s var(--easing),border-color .35s var(--easing);
+    mix-blend-mode:screen;
+  }
+  .cursor-ring.hover{width:72px;height:72px;background:rgba(255,138,64,.06);border-color:var(--amber)}
+  .cursor-dot{position:fixed;left:0;top:0;z-index:1001;pointer-events:none;width:4px;height:4px;border-radius:50%;background:var(--amber);transform:translate(-50%,-50%);box-shadow:0 0 12px var(--amber)}
+  @media(hover:none){.cursor-ring,.cursor-dot{display:none}}
+
+  /* ========== TOP BAR ========== */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:50;padding:24px 32px;
+    display:flex;align-items:center;justify-content:space-between;
+    opacity:0;pointer-events:none;transition:opacity .8s var(--easing);
+  }
+  .topbar.show{opacity:1;pointer-events:auto}
+  .brand{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-2)}
+  .brand-dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 14px var(--amber)}
+  .brand-line{height:1px;width:24px;background:var(--border-strong)}
+  .topbar-right{display:flex;align-items:center;gap:20px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .save-tag{display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .35s}
+  .save-tag.show{opacity:1}
+  .save-tag .ping{width:5px;height:5px;border-radius:50%;background:#5dd39e;animation:ping 1.6s infinite}
+  @keyframes ping{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+  .progress-track{position:relative;width:180px;height:2px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+  .progress-fill{position:absolute;inset:0;width:0%;background:linear-gradient(90deg,var(--amber),var(--amber-soft));box-shadow:0 0 12px var(--amber-glow);transition:width .9s var(--easing)}
+
+  /* ========== HUD CORNERS (decorativos desktop) ========== */
+  .hud{position:fixed;z-index:5;pointer-events:none;opacity:0;transition:opacity 1.2s var(--easing)}
+  .hud.show{opacity:.55}
+  .hud-corner{position:absolute;width:22px;height:22px;border:1px solid rgba(255,138,64,.35)}
+  .hud-tl{top:80px;left:42px;border-right:none;border-bottom:none}
+  .hud-tr{top:80px;right:42px;border-left:none;border-bottom:none}
+  .hud-bl{bottom:62px;left:42px;border-right:none;border-top:none}
+  .hud-br{bottom:62px;right:42px;border-left:none;border-top:none}
+  .hud-label{position:absolute;font-family:var(--mono);font-size:9px;letter-spacing:.32em;text-transform:uppercase;color:rgba(255,138,64,.55)}
+  .hud-l-left{top:50%;left:42px;transform:translateY(-50%) rotate(-90deg);transform-origin:left center;white-space:nowrap}
+  .hud-l-right{top:50%;right:42px;transform:translateY(-50%) rotate(90deg);transform-origin:right center;white-space:nowrap}
+  @media (max-width:1024px){.hud{display:none}}
+
+  /* ========== STAGE ========== */
+  #stage{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;perspective:1400px}
+  .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;will-change:transform,opacity;overflow-y:auto;overflow-x:hidden}
+  .scene.active{opacity:1;pointer-events:auto}
+  .scene::-webkit-scrollbar{width:6px}
+  .scene::-webkit-scrollbar-track{background:transparent}
+  .scene::-webkit-scrollbar-thumb{background:rgba(255,138,64,.2);border-radius:3px}
+
+  /* ========== CARD ========== */
+  .card-wrap{position:relative;width:100%;max-width:720px;margin:0 auto;padding:20px 0}
+  @media (min-width:1280px){.card-wrap{max-width:780px}}
+  @media (min-width:1600px){.card-wrap{max-width:840px}}
+  .card{
+    position:relative;
+    background:linear-gradient(160deg,rgba(28,20,14,.78),rgba(10,7,4,.72));
+    backdrop-filter:blur(40px) saturate(140%);-webkit-backdrop-filter:blur(40px) saturate(140%);
+    border-radius:32px;
+    border:1px solid var(--border);
+    box-shadow:
+      0 0 0 1px rgba(255,138,64,.08),
+      0 1px 0 rgba(255,255,255,.04) inset,
+      0 -30px 80px rgba(255,138,64,.12) inset,
+      0 40px 140px -20px rgba(255,138,64,.22),
+      0 60px 160px -30px rgba(0,0,0,.7);
+    padding:40px;
+    overflow:hidden;
+  }
+  @media (min-width:1280px){.card{padding:48px}}
+  .card::before{
+    content:"";position:absolute;inset:-1px;border-radius:33px;padding:1px;
+    background:linear-gradient(135deg,rgba(255,138,64,.55),rgba(255,138,64,0) 30%,rgba(255,138,64,0) 70%,rgba(255,138,64,.25));
+    -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;
+  }
+  .card::after{
+    content:"";position:absolute;left:0;right:0;top:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);pointer-events:none;
+  }
+
+  /* CARD INNER LAYOUT (similar a la imagen) */
+  .card-tabs{display:flex;gap:8px;margin-bottom:24px}
+  .tab{
+    flex:1;padding:14px 12px;
+    background:linear-gradient(180deg,rgba(15,11,7,.7),rgba(8,6,4,.6));
+    border:1px solid rgba(255,255,255,.05);
+    border-radius:14px;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    font-size:13px;font-weight:500;letter-spacing:-.01em;
+    transition:all .3s var(--easing);position:relative;
+  }
+  .tab.active{
+    border-color:rgba(255,138,64,.25);
+    background:linear-gradient(180deg,rgba(40,25,15,.75),rgba(20,14,8,.7));
+    box-shadow:0 0 0 1px rgba(255,138,64,.1),0 -10px 30px rgba(255,138,64,.08) inset;
+  }
+  .tab-icon{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center}
+  .tab-badge{
+    min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+    background:var(--amber);color:#1a0d05;font-size:10px;font-weight:700;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .tab-badge.muted{background:rgba(255,255,255,.08);color:var(--text-2)}
+
+  .field-row{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .field-label{font-size:13px;font-weight:500;color:var(--text);letter-spacing:-.01em;padding-left:2px}
+  .field-input{
+    width:100%;padding:18px 20px;
+    background:rgba(8,6,4,.55);
+    border:1px solid rgba(255,138,64,.18);
+    border-radius:14px;
+    color:var(--text);font-size:15px;line-height:1.5;
+    transition:all .3s var(--easing);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .field-input::placeholder{color:var(--muted)}
+  .field-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,138,64,.08),inset 0 1px 0 rgba(255,255,255,.03)}
+  textarea.field-input{min-height:120px;resize:vertical;font-family:var(--sans)}
+
+  .card-cta{
+    margin-top:18px;width:100%;padding:18px 24px;
+    background:linear-gradient(180deg,rgba(20,14,8,.7),rgba(10,7,4,.6));
+    border:1px solid rgba(255,138,64,.22);
+    border-radius:14px;
+    color:var(--text);font-size:14px;font-weight:500;letter-spacing:-.005em;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:all .35s var(--easing);position:relative;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,138,64,.08),inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .card-cta::before{
+    content:"";position:absolute;inset:0;background:radial-gradient(circle at center,rgba(255,138,64,.25),transparent 70%);
+    opacity:0;transition:opacity .4s var(--easing);
+  }
+  .card-cta:hover{transform:translateY(-1px);border-color:var(--amber-soft);box-shadow:0 0 0 1px rgba(255,138,64,.2),0 10px 40px -10px rgba(255,138,64,.3),inset 0 1px 0 rgba(255,255,255,.06)}
+  .card-cta:hover::before{opacity:1}
+  .card-cta>*{position:relative;z-index:1}
+  .card-cta.primary{
+    background:linear-gradient(180deg,rgba(255,138,64,.95),rgba(255,106,32,.95));
+    border-color:rgba(255,138,64,.9);color:#0a0604;font-weight:600;
+    box-shadow:0 0 0 1px rgba(255,138,64,.5),0 14px 48px -10px rgba(255,138,64,.55),inset 0 1px 0 rgba(255,255,255,.3);
+  }
+  .card-cta.primary:hover{filter:brightness(1.08)}
+
+  .card-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px}
+
+  /* ========== STEP INDICATOR (under card) ========== */
+  .step-zone{position:relative;margin-top:48px;padding:48px 0 0;text-align:center;max-width:640px;margin-left:auto;margin-right:auto}
+  .step-zone::before{
+    content:"";position:absolute;top:0;left:-5%;right:-5%;height:1px;
+    background-image:linear-gradient(90deg,rgba(255,138,64,.35) 50%,transparent 50%);
+    background-size:8px 1px;background-repeat:repeat-x;
+  }
+  .step-circle{
+    position:absolute;top:-22px;left:50%;transform:translateX(-50%);
+    width:44px;height:44px;border-radius:50%;
+    background:linear-gradient(180deg,#3a2718,#1a100a);
+    border:1px solid rgba(255,138,64,.4);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);letter-spacing:.05em;
+    box-shadow:0 0 0 6px rgba(0,0,0,.8),0 10px 30px rgba(255,138,64,.35),inset 0 1px 0 rgba(255,138,64,.3);
+  }
+  .step-circle::before{
+    content:"";position:absolute;inset:-12px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,138,64,.4),transparent 70%);z-index:-1;
+  }
+  .step-tag{font-family:var(--mono);font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--amber);margin-bottom:14px}
+  .step-title{font-size:clamp(28px,4vw,42px);font-weight:700;line-height:1.1;letter-spacing:-.025em;margin-bottom:14px;color:var(--text)}
+  .step-title em{font-style:normal;background:linear-gradient(180deg,var(--amber-soft),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .step-sub{font-size:15px;line-height:1.55;color:var(--text-2);max-width:480px;margin:0 auto}
+
+  /* ========== INTRO SCREEN VARIANTS ========== */
+  .intro-card{padding:56px 48px}
+  .intro-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--amber);margin-bottom:24px;display:flex;align-items:center;gap:12px;justify-content:center}
+  .intro-eyebrow::before,.intro-eyebrow::after{content:"";width:24px;height:1px;background:var(--amber)}
+  .intro-title{font-size:clamp(36px,5.5vw,56px);font-weight:700;line-height:1.05;letter-spacing:-.03em;margin-bottom:18px;text-align:center}
+  .intro-title em{font-style:normal;background:linear-gradient(180deg,var(--amber-soft),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .intro-sub{font-size:17px;line-height:1.55;color:var(--text-2);text-align:center;max-width:480px;margin:0 auto 32px}
+  .intro-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:36px}
+  .pill{padding:7px 14px;border-radius:999px;background:rgba(255,138,64,.08);border:1px solid rgba(255,138,64,.18);font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--amber-soft)}
+
+  /* ========== BLOCK INTRO ========== */
+  .block-card{padding:48px 44px;text-align:left}
+  .block-num{font-family:var(--mono);font-size:11px;letter-spacing:.25em;color:var(--amber);text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+  .block-num-circle{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(255,138,64,.15);border:1px solid rgba(255,138,64,.3);font-family:var(--mono);font-size:11px;font-weight:600;color:var(--amber-soft)}
+  .block-title{font-size:clamp(32px,5vw,48px);font-weight:700;line-height:1.05;letter-spacing:-.025em;margin-bottom:16px}
+  .block-title em{font-style:normal;background:linear-gradient(180deg,var(--amber-soft),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .block-desc{font-size:16px;line-height:1.55;color:var(--text-2);margin-bottom:28px}
+
+  /* ========== QUESTION CARD ========== */
+  .q-card{padding:36px 36px 30px}
+  .q-tabs-row{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+  .q-tab{padding:9px 14px;border-radius:10px;background:rgba(15,11,7,.6);border:1px solid rgba(255,255,255,.05);font-size:11px;font-weight:500;color:var(--text-2);display:flex;align-items:center;gap:8px;letter-spacing:-.005em}
+  .q-tab.current{background:linear-gradient(180deg,rgba(40,25,15,.7),rgba(20,14,8,.6));border-color:rgba(255,138,64,.25);color:var(--text)}
+  .q-tab .dot{width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber)}
+  .q-prompt{font-size:clamp(20px,2.4vw,26px);font-weight:600;line-height:1.25;letter-spacing:-.02em;margin-bottom:8px;color:var(--text)}
+  .q-hint{font-size:13px;color:var(--text-2);font-style:italic;margin-bottom:18px;line-height:1.5}
+
+  /* ========== AUDIO CARD ========== */
+  .audio-card{padding:44px 40px}
+  .audio-eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:16px}
+  .audio-eyebrow .ico{width:18px;height:18px;border-radius:50%;background:rgba(255,138,64,.2);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--amber)}
+  .audio-title{font-size:clamp(26px,3.5vw,36px);font-weight:700;line-height:1.1;letter-spacing:-.02em;margin-bottom:12px}
+  .audio-prompt{font-size:16px;line-height:1.55;color:var(--text-2);margin-bottom:20px;font-style:italic}
+  .audio-meta-row{display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:14px 18px;background:rgba(8,6,4,.5);border:1px solid rgba(255,138,64,.12);border-radius:12px;margin-bottom:18px}
+  .audio-meta-row .dot{width:5px;height:5px;border-radius:50%;background:var(--amber)}
+
+  /* ========== FINAL CARD ========== */
+  .final-card{padding:56px 48px;text-align:center}
+  .final-icon{display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background:rgba(255,138,64,.12);border:1px solid rgba(255,138,64,.3);margin-bottom:24px;color:var(--amber);box-shadow:0 0 0 8px rgba(255,138,64,.05),0 10px 40px rgba(255,138,64,.25)}
+  .final-title{font-size:clamp(32px,4.5vw,44px);font-weight:700;line-height:1.05;letter-spacing:-.025em;margin-bottom:16px}
+  .final-title em{font-style:normal;background:linear-gradient(180deg,var(--amber-soft),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .final-text{font-size:16px;line-height:1.6;color:var(--text-2);margin-bottom:28px;max-width:440px;margin-left:auto;margin-right:auto}
+  .final-actions{display:flex;flex-direction:column;gap:10px}
+  .secondary-actions{display:flex;gap:8px;margin-top:8px;justify-content:center;flex-wrap:wrap}
+  .small-btn{padding:10px 16px;font-size:11px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:999px;transition:all .3s var(--easing)}
+  .small-btn:hover{border-color:var(--amber);color:var(--text)}
+
+  /* ========== FOOTER ========== */
+  .footer-meta{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;font-family:var(--mono);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--muted);opacity:.6}
+
+  .keyhint{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:14px;text-align:center}
+  .keyhint kbd{display:inline-block;padding:2px 7px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:4px;margin:0 2px;font-family:var(--mono);font-size:10px}
+
+  /* ========== TABLET ========== */
+  @media (max-width:1024px){
+    #stage{padding:90px 24px 40px}
+    .scene{padding:90px 24px 40px;align-items:flex-start}
+  }
+
+  /* ========== MOBILE ========== */
+  @media (max-width:720px){
+    .topbar{padding:12px 16px}
+    .topbar-right{gap:10px}
+    .progress-track{width:72px}
+    .step-count-text{display:none}
+    .save-tag span:not(.ping){display:none}
+    #stage{padding:64px 12px 24px;align-items:flex-start}
+    .scene{padding:64px 12px 24px;align-items:flex-start}
+    .card-wrap{padding:8px 0}
+    .card{padding:26px 20px;border-radius:22px}
+    .intro-card,.block-card,.audio-card,.final-card{padding:32px 22px}
+    .q-card{padding:26px 20px}
+    .q-prompt{font-size:19px;line-height:1.3}
+    .footer-meta{font-size:8px;bottom:12px;letter-spacing:.22em}
+    .step-zone{margin-top:28px;padding-top:36px}
+    .step-circle{width:38px;height:38px;font-size:11px}
+    .step-title{font-size:22px}
+    .step-sub{font-size:13px}
+    .keyhint{display:none}
+    .btn-row-mobile{flex-direction:column!important}
+    .btn-row-mobile button{width:100%}
+    .secondary-actions{gap:6px}
+    .small-btn{font-size:10px;padding:9px 14px}
+    .intro-card{padding:36px 22px}
+    .intro-title{font-size:30px}
+    .intro-sub{font-size:15px}
+    .pill{padding:6px 10px;font-size:9px}
+    .field-input{padding:14px 16px;font-size:15px}
+    textarea.field-input{min-height:100px}
+  }
+  @media (max-width:380px){
+    .card{padding:22px 16px}
+    .intro-title{font-size:26px}
+    .q-prompt{font-size:17px}
+  }
+
+  /* ========== PRINT ========== */
+  @media print{
+    @page{margin:18mm}
+    body,html{position:static;overflow:visible;height:auto;background:#fff;color:#111}
+    #aura-canvas,#code-canvas,#vignette,#grain,.cursor-ring,.cursor-dot,.topbar,.footer-meta,.scene{display:none!important}
+    .print-list{display:block!important}
+  }
+  .print-list{display:none}
+</style>
+</head>
+<body>
+
+<canvas id="aura-canvas"></canvas>
+<canvas id="code-canvas"></canvas>
+<div id="vignette"></div>
+<div id="grain"></div>
+
+<div class="hud" id="hud">
+  <div class="hud-corner hud-tl"></div>
+  <div class="hud-corner hud-tr"></div>
+  <div class="hud-corner hud-bl"></div>
+  <div class="hud-corner hud-br"></div>
+  <div class="hud-label hud-l-left">Mentoría · 6 semanas</div>
+  <div class="hud-label hud-l-right">Sesión pre-arranque</div>
+</div>
+
+<div class="cursor-ring" id="cursor-ring"></div>
+<div class="cursor-dot" id="cursor-dot"></div>
+
+<div class="topbar" id="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-line"></span>
+    Traje a tu Medida
+  </div>
+  <div class="topbar-right">
+    <div class="save-tag" id="save"><span class="ping"></span><span id="save-text">Guardado</span></div>
+    <div class="step-count-text" id="step-count">00 / 40</div>
+    <div class="progress-track"><div class="progress-fill" id="progress"></div></div>
+  </div>
+</div>
+
+<div id="stage"></div>
+
+<div class="footer-meta">Felipe Castaño · Mentoría 1 a 1 · 6 semanas</div>
+
+<div class="print-list" id="print-list"></div>
+
+<script>
+/* ============================================================
+   CONFIG (editar antes de subir a producción)
+   ============================================================ */
+const CONFIG = {
+  whatsappNumber: '573234187831',
+  whatsappMessage: 'Hola Pipe! Acabo de terminar el formulario Traje a tu Medida. Acá te paso mis respuestas para empezar.',
+  supabase: {
+    enabled: true,
+    url: 'https://gnazsksbtxfyxivdpgvg.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduYXpza3NidHhmeXhpdmRwZ3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDMwMjYsImV4cCI6MjA5NTM3OTAyNn0.YCfw1pJefa_b2ehDS1RyKJ6J4Jf9ZVv50Ih5Crwn1XU',
+    tableName: 'traje_responses'
+  }
+};
+
+/* ============================================================
+   THREE.JS AURA (glow ámbar dinámico)
+   ============================================================ */
+const Aura = (() => {
+  let renderer, scene, camera, mesh, mat, raf;
+  let mouse = new THREE.Vector2(0.5, 0.5);
+  let target = new THREE.Vector2(0.5, 0.5);
+  let intensity = { current: 1, target: 1 };
+  let warmth = { current: 0.65, target: 0.65 };
+  let clock = new THREE.Clock();
+
+  const vs = `
+    void main(){ gl_Position = vec4(position, 1.0); }
+  `;
+  const fs = `
+    precision highp float;
+    uniform float uTime;
+    uniform vec2  uRes;
+    uniform vec2  uMouse;
+    uniform float uIntensity;
+    uniform float uWarmth;
+
+    // simple hash noise
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float noise(vec2 p){
+      vec2 i = floor(p); vec2 f = fract(p);
+      float a = hash(i);
+      float b = hash(i + vec2(1.0, 0.0));
+      float c = hash(i + vec2(0.0, 1.0));
+      float d = hash(i + vec2(1.0, 1.0));
+      vec2 u = f*f*(3.0-2.0*f);
+      return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+    float fbm(vec2 p){
+      float v = 0.0; float a = 0.5;
+      for(int i = 0; i < 4; i++){ v += a * noise(p); p *= 2.0; a *= 0.5; }
+      return v;
+    }
+
+    void main(){
+      vec2 uv = gl_FragCoord.xy / uRes.xy;
+      vec2 p  = uv - vec2(0.5, 0.78);    // origen del glow desplazado hacia arriba
+      p.x *= uRes.x / uRes.y;            // corregir aspecto
+
+      // halo principal
+      float d = length(p);
+      float halo = exp(-d * 2.2) * 1.25;
+
+      // soft secondary glow centrado
+      vec2 q = uv - vec2(0.5, 0.5);
+      q.x *= uRes.x / uRes.y;
+      float center = exp(-length(q) * 1.3) * 0.35;
+
+      // glow reactivo al mouse
+      vec2 mp = uv - uMouse;
+      mp.x *= uRes.x / uRes.y;
+      float mGlow = exp(-length(mp) * 3.5) * 0.28;
+
+      // fbm modulation para un poco de vida
+      float n = fbm(uv * 3.0 + vec2(uTime * 0.04, uTime * 0.025));
+      float pulse = 0.85 + 0.15 * sin(uTime * 0.4);
+
+      float total = (halo + center + mGlow) * pulse * uIntensity;
+      total += n * 0.06;
+
+      // color ámbar warm
+      vec3 cWarm  = vec3(1.0, 0.42, 0.16);  // ámbar profundo
+      vec3 cSoft  = vec3(1.0, 0.69, 0.41);  // ámbar suave
+      vec3 col = mix(cWarm, cSoft, uWarmth);
+      col *= total;
+
+      // sutil tinte en las esquinas
+      col += vec3(0.02, 0.01, 0.0) * (1.0 - length(uv - 0.5));
+
+      // gamma soft
+      col = pow(col, vec3(0.95));
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function init(){
+    const canvas = document.getElementById('aura-canvas');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 1);
+
+    scene = new THREE.Scene();
+    camera = new THREE.Camera();
+    const geo = new THREE.PlaneGeometry(2, 2);
+    mat = new THREE.ShaderMaterial({
+      vertexShader: vs, fragmentShader: fs,
+      uniforms: {
+        uTime: { value: 0 },
+        uRes:  { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        uMouse:{ value: new THREE.Vector2(0.5, 0.5) },
+        uIntensity:{ value: 1.0 },
+        uWarmth:{ value: 0.65 }
+      }
+    });
+    mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('pointermove', e => {
+      target.x = e.clientX / window.innerWidth;
+      target.y = 1.0 - e.clientY / window.innerHeight;
+    });
+    animate();
+  }
+  function onResize(){
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    mat.uniforms.uRes.value.set(window.innerWidth, window.innerHeight);
+  }
+  function animate(){
+    raf = requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    mouse.lerp(target, 0.06);
+    intensity.current += (intensity.target - intensity.current) * 0.04;
+    warmth.current   += (warmth.target   - warmth.current) * 0.04;
+    mat.uniforms.uTime.value += dt;
+    mat.uniforms.uMouse.value.copy(mouse);
+    mat.uniforms.uIntensity.value = intensity.current;
+    mat.uniforms.uWarmth.value = warmth.current;
+    renderer.render(scene, camera);
+  }
+  function setMood(int, warm){ intensity.target = int; warmth.target = warm; }
+  return { init, setMood };
+})();
+
+/* ============================================================
+   CANVAS 2D · Caracteres tipo terminal
+   ============================================================ */
+const CodeRain = (() => {
+  let canvas, ctx, cols = [], w, h;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+  const fontSize = 13;
+  let columnWidth;
+
+  function init(){
+    canvas = document.getElementById('code-canvas');
+    ctx = canvas.getContext('2d');
+    resize();
+    window.addEventListener('resize', resize);
+    loop();
+  }
+  function resize(){
+    w = window.innerWidth; h = window.innerHeight;
+    canvas.width = w * (window.devicePixelRatio || 1);
+    canvas.height = h * (window.devicePixelRatio || 1);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    columnWidth = Math.floor(fontSize * 4.5);
+    cols = [];
+    const count = Math.floor(w / columnWidth);
+    for(let i = 0; i < count; i++){
+      cols.push({
+        x: i * columnWidth + Math.random() * 8,
+        y: Math.random() * h,
+        speed: 0.15 + Math.random() * 0.45,
+        chars: Array.from({ length: Math.floor(8 + Math.random() * 10) }, () => chars[Math.floor(Math.random() * chars.length)]),
+        opacity: 0.15 + Math.random() * 0.45
+      });
+    }
+  }
+  function loop(){
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = `500 ${fontSize}px 'JetBrains Mono', monospace`;
+    cols.forEach((c, i) => {
+      c.y += c.speed;
+      if(c.y > h + 200) c.y = -200;
+      // Sólo dibujar en banda media-baja (donde está la zona descriptiva)
+      const yCenter = h * 0.62;
+      const dist = Math.abs(c.y - yCenter);
+      const fade = Math.max(0, 1 - dist / (h * 0.45));
+      const alpha = c.opacity * fade;
+      if(alpha < 0.01) return;
+      c.chars.forEach((ch, idx) => {
+        const a = alpha * (1 - idx / c.chars.length);
+        ctx.fillStyle = `rgba(255, 130, 60, ${a})`;
+        ctx.fillText(ch, c.x, c.y - idx * fontSize * 1.4);
+      });
+      // Cambiar carácter ocasionalmente
+      if(Math.random() < 0.02){
+        c.chars[Math.floor(Math.random() * c.chars.length)] = chars[Math.floor(Math.random() * chars.length)];
+      }
+    });
+    requestAnimationFrame(loop);
+  }
+  return { init };
+})();
+
+/* ============================================================
+   DATA · Bloques y preguntas
+   ============================================================ */
+const BLOCKS = [
+  { n:1, tag:'Contexto actual',     title:'¿Desde <em>dónde</em> arrancás?',           desc:'Para entender tu punto de partida real: tiempo, dinero, vida.', mood:[1.0, 0.65] },
+  { n:2, tag:'Marca y negocio',     title:'¿Qué hay <em>construido</em>?',             desc:'Para saber qué se queda, qué se ajusta y qué se descarta.', mood:[0.95, 0.55] },
+  { n:3, tag:'Creencias',           title:'¿Qué pensás cuando <em>nadie te oye</em>?', desc:'Acá vive la verdad. Las respuestas en este bloque nos van a salvar de mucha terapia disfrazada de estrategia.', mood:[1.25, 0.85] },
+  { n:4, tag:'Autoimagen',          title:'¿Cómo <em>te ves</em>?',                    desc:'La distancia entre cómo te describís hoy y cómo querés ser descrita es el trabajo de marca.', mood:[0.9, 0.5] },
+  { n:5, tag:'Visión',              title:'¿Hasta <em>dónde</em> te animás a soñar?',  desc:'La diferencia entre lo posible y lo soñado es tu techo mental. Mi trabajo es correrlo.', mood:[1.1, 0.7] },
+  { n:6, tag:'Compromiso real',     title:'¿Qué estás dispuesta a <em>sostener</em>?', desc:'Los procesos no fracasan por estrategia — fracasan por sostenibilidad.', mood:[1.0, 0.6] },
+];
+
+const QUESTIONS = [
+  { id:1, b:1, text:'Contame brevemente tu historia profesional. ¿Cómo llegaste a hacer lo que hacés hoy y por qué?', hint:'Tu historia, en tus palabras.', label:'Historia profesional' },
+  { id:2, b:1, text:'¿En qué trabajás hoy exactamente?', hint:'Consultorio propio, empleo, freelance, mixto.', label:'En qué trabaja hoy' },
+  { id:3, b:1, text:'¿De dónde viene hoy la mayor parte de tu ingreso mensual?', hint:'Sé específica con la fuente principal.', label:'Fuente principal de ingreso' },
+  { id:4, b:1, text:'¿Cuánto facturás en promedio al mes en este momento?', hint:'Sin filtro, no juzgo. Solo necesito el dato real para diseñar bien.', label:'Facturación mensual actual' },
+  { id:5, b:1, text:'¿Quién depende de vos económicamente y cómo se reparte tu día típico?', hint:'Hijos, pareja, familia… y un día normal tuyo.', label:'Dependientes y día típico' },
+  { id:6, b:2, text:'¿Cuál es tu Instagram? ¿Hace cuánto lo tenés activo y con qué frecuencia publicás?', hint:'@usuario, tiempo activo, frecuencia real.', label:'Instagram actual' },
+  { id:7, b:2, text:'¿Intentaste antes vender algo por internet? ¿Qué pasó?', hint:'Funcionó, no funcionó, por qué creés.', label:'Intentos previos de venta online' },
+  { id:8, b:2, text:'¿Tenés hoy algún producto digital, plan, ebook o programa empaquetado?', hint:'Aunque sea borrador, aunque esté en una nota del celular.', label:'Producto actual' },
+  { id:9, b:2, text:'¿Cuántos clientes activos tenés hoy y cómo te encontraron?', hint:'Número aproximado + canales de captación.', label:'Clientes activos' },
+  { id:10, b:2, text:'Si ya tenés precios definidos, ¿cuáles son?', hint:'Tarifas actuales, paquetes.', label:'Precios actuales' },
+  { id:11, b:2, text:'¿Qué probaste para conseguir clientes y NO funcionó?', hint:'Sé concreta — lo que más duele es lo que más enseña.', label:'Qué no funcionó' },
+  { id:12, b:3, text:'Cuando pensás en cobrar más caro, ¿qué es lo primero que pasa por tu cabeza?', hint:'Escribí la frase exacta que aparece, aunque te dé pena.', label:'Pensamiento al cobrar más' },
+  { id:13, b:3, text:'¿Qué te da vergüenza decir o mostrar de tu trabajo en redes?', hint:'Lo que evitás mostrar y por qué.', label:'Qué da vergüenza mostrar' },
+  { id:14, b:3, text:'¿Hay algo que te dijeron en tu casa de chica sobre el dinero que todavía pesa hoy?', hint:'Sea cierto o no — lo que se quedó grabado.', label:'Mensajes familiares sobre dinero' },
+  { id:15, b:3, text:'¿Qué dirían tus papás o tu pareja si supieran exactamente cuánto vas a cobrar por tu programa?', hint:'¿Y te importa lo que dirían?', label:'Opinión cercana sobre el precio' },
+  { id:16, b:3, text:'¿Hay algún cliente al que le rebajaste el precio sintiéndote mal por dentro?', hint:'Contame la historia exacta.', label:'Rebajas por culpa' },
+  { id:17, b:3, text:'¿Qué creés que tenés que tener, saber o ser ANTES de poder cobrar lo que sentís que valés?', hint:'Listá todo lo que aparezca — la lista de excusas, sin censurarte.', label:'Pre-requisitos imaginarios' },
+  { id:18, b:4, text:'¿Cómo te describís a vos misma profesionalmente HOY, en una sola frase?', hint:'Una sola frase, sin rodeos.', label:'Auto-descripción hoy' },
+  { id:19, b:4, text:'¿Cómo te gustaría que te describieran tus clientes ideales dentro de un año?', hint:'La frase que querrías escuchar.', label:'Descripción deseada en 1 año' },
+  { id:20, b:4, text:'¿Qué de vos como persona es tu mayor diferencial — esa cosa no copiable?', hint:'Eso único tuyo que nadie más puede ofrecer.', label:'Diferencial no copiable' },
+  { id:21, b:4, text:'¿Qué de vos todavía te incomoda mostrar públicamente?', hint:'Tu casa, tu familia, tu acento, tu cuerpo, una opinión fuerte.', label:'Qué le cuesta mostrar' },
+  { id:22, b:5, text:'Si esta mentoría sale TODO bien, ¿qué tenés al cerrar las 6 semanas que hoy no tenés?', hint:'Sé específica — cifras, situaciones, sensaciones.', label:'Foto del éxito a 6 semanas' },
+  { id:23, b:5, text:'¿Cuánto te gustaría facturar al mes dentro de 6 meses?', hint:'La cifra que SÍ se siente posible.', label:'Cifra posible en 6 meses' },
+  { id:24, b:5, text:'¿Cuánto facturarías al mes si todo te saliera como un sueño?', hint:'La cifra que te da un poquito de miedo decir en voz alta.', label:'Cifra del sueño' },
+  { id:25, b:5, text:'¿Qué harías con tu vida si llegaras a la cifra del sueño?', hint:'Concreta — qué dejarías, qué empezarías, a quién le darías qué.', label:'Vida con la cifra del sueño' },
+  { id:26, b:5, text:'¿Qué resultado concreto al cerrar las 6 semanas te haría decir "valió cada peso"?', hint:'El indicador no negociable de éxito.', label:'Resultado que justifica el pago' },
+  { id:27, b:6, text:'¿Cuántas horas REALES por semana podés dedicar a esto sin engañarte?', hint:'Pensando en tu familia, tu trabajo actual, tu casa.', label:'Horas reales por semana' },
+  { id:28, b:6, text:'¿En qué momento de la semana podés trabajar sin interrupciones?', hint:'Sé específica: día y hora.', label:'Ventana de trabajo profundo' },
+  { id:29, b:6, text:'¿Qué cosas estás dispuesta a soltar durante estas 6 semanas para que esto funcione?', hint:'Lo que dejás afuera para hacer espacio.', label:'Qué está dispuesta a soltar' },
+  { id:30, b:6, text:'¿Qué creés que te haría abandonar este proceso?', hint:'Anticipalo ahora — cansancio, una crisis, una pelea, un mes flojo de plata. Si lo vemos venir, lo desactivo.', label:'Kriptonita anticipada' },
+];
+
+const AUDIOS = [
+  { letter:'A', title:'¿Por qué ahora?',     prompt:'¿Por qué querés esto ahora y no hace 2 años ni en 2 años más? ¿Qué cambió o qué está a punto de cambiar?' },
+  { letter:'B', title:'¿Qué te aterra?',     prompt:'No la respuesta políticamente correcta. Lo más vergonzoso, lo que no le contarías a nadie. Eso es lo que tenemos que trabajar.' },
+  { letter:'C', title:'El día del cierre',   prompt:'Cerrá los ojos y proyectate al cierre de la mentoría. ¿Qué pasa ese día que te hace decir "valió cada peso"? Describímelo como una escena.' },
+];
+
+/* ============================================================
+   BUILD SCREEN LIST
+   ============================================================ */
+const screens = [];
+screens.push({ type:'intro' });
+BLOCKS.forEach(block => {
+  screens.push({ type:'block', block });
+  QUESTIONS.filter(q => q.b === block.n).forEach(q => {
+    screens.push({ type:'question', q, block });
+  });
+});
+AUDIOS.forEach((audio, i) => screens.push({ type:'audio', audio, idx:i }));
+screens.push({ type:'final' });
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const STORAGE_KEY = 'traje-a-tu-medida-v3';
+let stepIndex = 0;
+let answers = JSON.parse(localStorage.getItem(STORAGE_KEY + '-answers') || '{}');
+let audiosDone = JSON.parse(localStorage.getItem(STORAGE_KEY + '-audios') || '{}');
+const savedStep = parseInt(localStorage.getItem(STORAGE_KEY + '-step') || '0', 10);
+const stage = document.getElementById('stage');
+const topbar = document.getElementById('topbar');
+const hud = document.getElementById('hud');
+const progressEl = document.getElementById('progress');
+const stepCountEl = document.getElementById('step-count');
+const saveEl = document.getElementById('save');
+const saveText = document.getElementById('save-text');
+
+/* ============================================================
+   HELPERS DE ICONOS (SVG inline)
+   ============================================================ */
+const ICONS = {
+  arrow: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+  back: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>',
+  send: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>',
+  mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>',
+  whatsapp: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5 0-.1-.6-1.5-.9-2.1-.2-.5-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3c.1.2 2.1 3.3 5.1 4.6.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.5.3-.7.3-1.4.2-1.5 0-.1-.3-.2-.6-.3M12 22h-.1a10 10 0 0 1-5-1.4l-.4-.2-3.7 1 1-3.6-.2-.4A10 10 0 0 1 12 2c2.7 0 5.2 1 7 2.9a10 10 0 0 1 2.9 7c0 5.6-4.5 10.1-9.9 10.1m0-18.2A8.2 8.2 0 0 0 3.8 12c0 1.6.4 3.2 1.3 4.5l.2.3-.7 2.5 2.6-.7.3.2c1.3.8 2.8 1.2 4.4 1.2A8.2 8.2 0 0 0 20.2 12 8.2 8.2 0 0 0 12 3.8Z"/></svg>',
+  pdf: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+  spark: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 13.5 9 19.5 10.5 13.5 12 12 18 10.5 12 4.5 10.5 10.5 9Z"/><path d="M19 3v4M21 5h-4M5 19v2M6 20H4"/></svg>',
+  check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  play: '<svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  refresh: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>',
+};
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+  const screen = screens[stepIndex];
+  const scene = document.createElement('div');
+  scene.className = 'scene active';
+
+  if(screen.type === 'intro'){
+    scene.innerHTML = `
+      <div class="card-wrap">
+        <div class="card intro-card">
+          <div class="intro-eyebrow">Pre-arranque mentoría</div>
+          <h1 class="intro-title">Hola.<br/>Bienvenida a crear tu <em>traje a tu medida</em>.</h1>
+          <p class="intro-sub">No es un formulario. Es la materia prima con la que voy a diseñar tus 6 semanas alrededor de tu vida real, tus miedos reales y tu visión real.</p>
+          <div class="intro-pills">
+            <span class="pill">30 preguntas</span>
+            <span class="pill">3 audios</span>
+            <span class="pill">~ 1 hora</span>
+            <span class="pill">Se guarda solo</span>
+          </div>
+          <button class="card-cta primary" data-next>Empezar a medirme ${ICONS.arrow}</button>
+        </div>
+        <div class="step-zone">
+          <div class="step-circle">00</div>
+          <div class="step-tag">Felipe Castaño · Fily</div>
+          <h2 class="step-title">Empieza tu <em>diagnóstico</em>.</h2>
+          <p class="step-sub">Pídete una hora a solas, sin interrupciones, con un café. Respondé honesto. Lo que no me cuentes, no lo puedo trabajar.</p>
+        </div>
+      </div>
+    `;
+    Aura.setMood(1.05, 0.65);
+    topbar.classList.remove('show');
+    hud.classList.remove('show');
+  }
+  else if(screen.type === 'block'){
+    const b = screen.block;
+    scene.innerHTML = `
+      <div class="card-wrap">
+        <div class="card block-card">
+          <div class="block-num">
+            <span class="block-num-circle">${String(b.n).padStart(2,'0')}</span>
+            Bloque ${String(b.n).padStart(2,'0')} · ${b.tag}
+          </div>
+          <h2 class="block-title">${b.title}</h2>
+          <p class="block-desc">${b.desc}</p>
+          <button class="card-cta" data-next>Comenzar bloque ${ICONS.arrow}</button>
+        </div>
+        <div class="step-zone">
+          <div class="step-circle">${String(b.n).padStart(2,'0')}</div>
+          <div class="step-tag">Bloque ${b.n} de 6</div>
+          <h2 class="step-title">${b.title}</h2>
+          <p class="step-sub">${b.desc}</p>
+        </div>
+      </div>
+    `;
+    Aura.setMood(b.mood[0], b.mood[1]);
+    topbar.classList.add('show');
+    hud.classList.add('show');
+  }
+  else if(screen.type === 'question'){
+    const q = screen.q, b = screen.block;
+    const val = answers[q.id] || '';
+    const answeredInBlock = QUESTIONS.filter(qq => qq.b === b.n && (answers[qq.id]||'').trim()).length;
+    const totalInBlock = QUESTIONS.filter(qq => qq.b === b.n).length;
+    scene.innerHTML = `
+      <div class="card-wrap">
+        <div class="card q-card">
+          <div class="q-tabs-row">
+            <span class="q-tab current"><span class="dot"></span> Bloque ${b.n} · ${b.tag}</span>
+            <span class="q-tab">Pregunta ${String(q.id).padStart(2,'0')} <span class="tab-badge">${answeredInBlock}/${totalInBlock}</span></span>
+          </div>
+          <h3 class="q-prompt">${q.text}</h3>
+          ${q.hint ? `<p class="q-hint">${q.hint}</p>` : ''}
+          <div class="field-row">
+            <label class="field-label" for="q-${q.id}">Tu respuesta</label>
+            <textarea class="field-input" id="q-${q.id}" placeholder="Escribí acá con calma…">${val.replace(/</g,'&lt;')}</textarea>
+          </div>
+          <div class="btn-row-mobile" style="display:flex;gap:8px;margin-top:10px">
+            <button class="card-cta" style="flex:0 0 auto;padding:18px 22px" data-prev>${ICONS.back} Atrás</button>
+            <button class="card-cta primary" style="flex:1" data-next>Enviar respuesta ${ICONS.send}</button>
+          </div>
+          <div class="keyhint">Pulsá <kbd>↵ Enter</kbd> para enviar · <kbd>Shift</kbd>+<kbd>↵</kbd> nueva línea</div>
+        </div>
+        <div class="step-zone">
+          <div class="step-circle">${String(q.id).padStart(2,'0')}</div>
+          <div class="step-tag">Bloque ${b.n} de 6 · Pregunta ${q.id}/30</div>
+          <h2 class="step-title">${b.title}</h2>
+          <p class="step-sub">Llevás ${answeredInBlock} de ${totalInBlock} preguntas respondidas en este bloque.</p>
+        </div>
+      </div>
+    `;
+    Aura.setMood(b.mood[0], b.mood[1]);
+    topbar.classList.add('show');
+    hud.classList.add('show');
+    setTimeout(() => {
+      const ta = scene.querySelector('.field-input');
+      if(ta){
+        ta.focus();
+        ta.style.height = 'auto';
+        ta.style.height = Math.max(120, ta.scrollHeight) + 'px';
+        ta.addEventListener('input', e => {
+          answers[q.id] = e.target.value;
+          ta.style.height = 'auto';
+          ta.style.height = Math.max(120, ta.scrollHeight) + 'px';
+          saveAnswers();
+        });
+        ta.addEventListener('keydown', e => {
+          if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); goNext(); }
+        });
+      }
+    }, 80);
+  }
+  else if(screen.type === 'audio'){
+    const a = screen.audio;
+    const done = audiosDone[a.letter];
+    scene.innerHTML = `
+      <div class="card-wrap">
+        <div class="card audio-card">
+          <div class="audio-eyebrow">
+            <span class="ico">${ICONS.play}</span>
+            Audio ${a.letter} · WhatsApp
+          </div>
+          <h2 class="audio-title">${a.title}</h2>
+          <p class="audio-prompt">${a.prompt}</p>
+          <div class="audio-meta-row">
+            <span class="dot"></span> 1 a 3 minutos · Grabá sin ensayar · La primera toma es la buena
+          </div>
+          <div class="btn-row-mobile" style="display:flex;gap:8px">
+            <button class="card-cta" style="flex:0 0 auto;padding:18px 22px" data-prev>${ICONS.back} Atrás</button>
+            <button class="card-cta ${done?'':'primary'}" style="flex:1" data-audio-done data-letter="${a.letter}">
+              ${done ? `${ICONS.check} Ya está grabado` : `Listo, lo voy a grabar ${ICONS.arrow}`}
+            </button>
+          </div>
+        </div>
+        <div class="step-zone">
+          <div class="step-circle">${a.letter}</div>
+          <div class="step-tag">Audio ${a.letter} de 3</div>
+          <h2 class="step-title">${a.title}</h2>
+          <p class="step-sub">Después de cerrar el formulario, abrí WhatsApp y mandame este audio.</p>
+        </div>
+      </div>
+    `;
+    Aura.setMood(0.95, 0.55);
+    topbar.classList.add('show');
+    hud.classList.add('show');
+  }
+  else if(screen.type === 'final'){
+    const waUrl = `https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(CONFIG.whatsappMessage)}`;
+    scene.innerHTML = `
+      <div class="card-wrap">
+        <div class="card final-card">
+          <div class="final-icon">${ICONS.spark}</div>
+          <h2 class="final-title">Acabás de dar un<br/><em>paso grande</em>.</h2>
+          <p class="final-text">Esto que me dejaste acá es la materia prima de tus próximas 6 semanas. Escribile a Pipe ahora y contale que ya está listo — él te recibe del otro lado.</p>
+          <div class="final-actions">
+            <a class="card-cta primary" href="${waUrl}" target="_blank" rel="noopener">${ICONS.whatsapp} Escribirle a Pipe por WhatsApp</a>
+            <div class="secondary-actions">
+              <button class="small-btn" onclick="exportPDF()">${ICONS.pdf} Descargar PDF</button>
+              <button class="small-btn" onclick="copyToClipboard()">⧉ Copiar respuestas</button>
+              <button class="small-btn" onclick="resetForm()">${ICONS.refresh} Nuevo formulario</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-zone">
+          <div class="step-circle">✓</div>
+          <div class="step-tag">Formulario completo</div>
+          <h2 class="step-title">Te <em>tomé las medidas</em>.</h2>
+          <p class="step-sub">Ahora viene el corte. En 24-48h Pipe te confirma la fecha y la hora de tu primera sesión.</p>
+        </div>
+      </div>
+    `;
+    Aura.setMood(1.1, 0.7);
+    topbar.classList.add('show');
+    hud.classList.add('show');
+    // enviar a Supabase si configurado
+    saveToSupabase();
+  }
+
+  // animaciones de salida del anterior + entrada del nuevo
+  const prev = stage.querySelectorAll('.scene.active');
+  prev.forEach(p => {
+    gsap.to(p, {
+      opacity:0, y:-30, scale:0.98, duration:0.45, ease:'power3.in',
+      onComplete:()=>p.remove()
+    });
+  });
+
+  stage.appendChild(scene);
+  gsap.fromTo(scene,
+    { opacity:0, y:40, scale:0.98 },
+    { opacity:1, y:0, scale:1, duration:0.85, ease:'expo.out', delay:0.15 }
+  );
+
+  // stagger entrada de elementos internos
+  const inner = scene.querySelectorAll('.card > *, .step-zone > *');
+  gsap.from(inner, {
+    y:18, opacity:0, duration:0.7, ease:'expo.out',
+    stagger:{ each:0.04 }, delay:0.3
+  });
+
+  // wire
+  scene.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', goNext));
+  scene.querySelectorAll('[data-prev]').forEach(b => b.addEventListener('click', goPrev));
+  scene.querySelectorAll('[data-audio-done]').forEach(b => b.addEventListener('click', e => {
+    const letter = e.currentTarget.dataset.letter;
+    audiosDone[letter] = true;
+    localStorage.setItem(STORAGE_KEY + '-audios', JSON.stringify(audiosDone));
+    goNext();
+  }));
+
+  updateProgress();
+  saveStep();
+}
+
+/* ============================================================
+   NAV
+   ============================================================ */
+function goNext(){
+  if(stepIndex < screens.length - 1){ stepIndex++; render(); }
+}
+function goPrev(){
+  if(stepIndex > 0){ stepIndex--; render(); }
+}
+function updateProgress(){
+  const total = screens.length - 1;
+  const pct = (stepIndex / total) * 100;
+  progressEl.style.width = pct + '%';
+  const answered = Object.values(answers).filter(v => v && v.trim()).length;
+  stepCountEl.textContent = `${String(stepIndex).padStart(2,'0')} / ${String(total).padStart(2,'0')} · ${answered}/30`;
+}
+function saveAnswers(){
+  localStorage.setItem(STORAGE_KEY + '-answers', JSON.stringify(answers));
+  saveText.textContent = 'Guardando…';
+  saveEl.classList.add('show');
+  clearTimeout(window._st);
+  window._st = setTimeout(() => {
+    saveText.textContent = 'Guardado';
+    setTimeout(() => saveEl.classList.remove('show'), 1200);
+  }, 450);
+}
+function saveStep(){ localStorage.setItem(STORAGE_KEY + '-step', String(stepIndex)); }
+
+/* ============================================================
+   SUPABASE (envío automático al finalizar)
+   ============================================================ */
+async function saveToSupabase(){
+  if(!CONFIG.supabase.enabled || !CONFIG.supabase.url || !CONFIG.supabase.anonKey) return;
+  try{
+    const body = {
+      submitted_at: new Date().toISOString(),
+      answers: answers,
+      audios: audiosDone,
+      user_agent: navigator.userAgent,
+    };
+    const res = await fetch(`${CONFIG.supabase.url}/rest/v1/${CONFIG.supabase.tableName}`, {
+      method:'POST',
+      headers:{
+        'apikey': CONFIG.supabase.anonKey,
+        'Authorization': `Bearer ${CONFIG.supabase.anonKey}`,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal'
+      },
+      body: JSON.stringify(body)
+    });
+    if(res.ok){
+      saveText.textContent = 'Enviado a Pipe';
+      saveEl.classList.add('show');
+      setTimeout(() => saveEl.classList.remove('show'), 3000);
+    }
+  }catch(e){ console.warn('Supabase save failed', e); }
+}
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+function buildText(){
+  let out = 'TRAJE A TU MEDIDA — RESPUESTAS\n';
+  out += 'Mentoría con Felipe Castaño (Pipe / Fily)\n';
+  out += 'Fecha: ' + new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'}) + '\n';
+  out += '\n' + '─'.repeat(60) + '\n';
+  BLOCKS.forEach(b => {
+    out += `\n\nBLOQUE ${b.n} — ${b.tag}\n` + '─'.repeat(40) + '\n\n';
+    QUESTIONS.filter(q => q.b === b.n).forEach(q => {
+      out += `${String(q.id).padStart(2,'0')}. ${q.label}\n   ${q.text}\n\n`;
+      out += '   → ' + (answers[q.id] || '(sin respuesta)') + '\n\n';
+    });
+  });
+  out += '\n' + '─'.repeat(60) + '\nAUDIOS DE WHATSAPP\n' + '─'.repeat(60) + '\n\n';
+  AUDIOS.forEach(a => {
+    out += `${a.letter} · ${a.title}  ${audiosDone[a.letter] ? '[grabado]' : '[pendiente]'}\n   ${a.prompt}\n\n`;
+  });
+  return out;
+}
+
+function buildPrintList(){
+  const el = document.getElementById('print-list');
+  let html = `<style>
+    body{background:#fff!important;color:#111!important;font-family:'Inter',sans-serif}
+    .pl{padding:0;max-width:780px;margin:0 auto}
+    .pl h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+    .pl .meta{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#666;margin-bottom:28px}
+    .pl .pb{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#000;margin:28px 0 14px;padding-top:14px;border-top:2px solid #000}
+    .pl .pq{margin-bottom:20px;page-break-inside:avoid}
+    .pl .pq .ph{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
+    .pl .pq .pn{font-family:'JetBrains Mono',monospace;font-size:11px;color:#000;font-weight:600}
+    .pl .pq .pt{font-size:14px;font-weight:600;color:#111}
+    .pl .pq .pa{font-size:14px;color:#222;padding:10px 14px;background:#faf7f0;border-left:3px solid #ff8a40;white-space:pre-wrap;line-height:1.5;border-radius:0 6px 6px 0}
+    .pl .pq .pa.empty{color:#999;font-style:italic;background:transparent;border-left:3px solid #ddd}
+    .pl .audios{margin-top:36px;padding-top:18px;border-top:2px solid #000}
+    .pl .au{margin-bottom:14px}
+    .pl .au .al{font-family:'JetBrains Mono',monospace;font-size:11px;color:#000;font-weight:600;letter-spacing:.12em}
+    .pl .au .at{font-size:15px;font-weight:600;margin:2px 0 4px}
+    .pl .au .ap{font-size:13px;color:#444;font-style:italic}
+  </style>
+  <div class="pl">
+    <h1>Traje a tu Medida — Respuestas</h1>
+    <div class="meta">Mentoría con Felipe Castaño · ${new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>`;
+  BLOCKS.forEach(b => {
+    html += `<div class="pb">Bloque ${String(b.n).padStart(2,'0')} — ${b.tag}</div>`;
+    QUESTIONS.filter(q => q.b === b.n).forEach(q => {
+      const a = (answers[q.id] || '').trim();
+      html += `<div class="pq"><div class="ph"><span class="pn">${String(q.id).padStart(2,'0')}.</span><span class="pt">${q.text}</span></div>`;
+      html += `<div class="pa ${a ? '' : 'empty'}">${a || '(sin respuesta)'}</div></div>`;
+    });
+  });
+  html += `<div class="audios"><h2 style="font-size:18px;margin-bottom:14px">Audios de WhatsApp</h2>`;
+  AUDIOS.forEach(a => {
+    html += `<div class="au"><span class="al">Audio ${a.letter} ${audiosDone[a.letter]?'· grabado':'· pendiente'}</span>
+      <div class="at">${a.title}</div><div class="ap">${a.prompt}</div></div>`;
+  });
+  html += `</div></div>`;
+  el.innerHTML = html;
+}
+
+function exportPDF(){
+  buildPrintList();
+  setTimeout(() => window.print(), 200);
+}
+function copyToClipboard(){
+  navigator.clipboard.writeText(buildText()).then(() => {
+    saveText.textContent = 'Copiado';
+    saveEl.classList.add('show');
+    setTimeout(() => saveEl.classList.remove('show'), 1800);
+  });
+}
+function resetForm(){
+  if(!confirm('Borrar todas las respuestas y empezar de cero?\nUsalo solo al entregarle la landing a un nuevo cliente.')) return;
+  localStorage.removeItem(STORAGE_KEY + '-answers');
+  localStorage.removeItem(STORAGE_KEY + '-step');
+  localStorage.removeItem(STORAGE_KEY + '-audios');
+  answers = {}; audiosDone = {}; stepIndex = 0;
+  render();
+}
+
+/* ============================================================
+   CURSOR
+   ============================================================ */
+const ring = document.getElementById('cursor-ring');
+const dot = document.getElementById('cursor-dot');
+let cx = 0, cy = 0, rx = 0, ry = 0;
+window.addEventListener('pointermove', e => { cx = e.clientX; cy = e.clientY; });
+(function loop(){
+  rx += (cx - rx) * 0.18; ry += (cy - ry) * 0.18;
+  ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+  dot.style.transform = `translate(${cx}px,${cy}px) translate(-50%,-50%)`;
+  requestAnimationFrame(loop);
+})();
+document.addEventListener('mouseover', e => {
+  if(e.target.matches('button, a, textarea, input, [data-next], [data-prev], [data-audio-done]')) ring.classList.add('hover');
+});
+document.addEventListener('mouseout', e => {
+  if(e.target.matches('button, a, textarea, input, [data-next], [data-prev], [data-audio-done]')) ring.classList.remove('hover');
+});
+
+/* ============================================================
+   KEYBOARD
+   ============================================================ */
+window.addEventListener('keydown', e => {
+  if(e.metaKey || e.ctrlKey) return;
+  if(e.key === 'ArrowRight' && !e.target.matches('textarea, input')) goNext();
+  if(e.key === 'ArrowLeft' && !e.target.matches('textarea, input')) goPrev();
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+Aura.init();
+CodeRain.init();
+if(savedStep > 0 && (Object.keys(answers).length || Object.keys(audiosDone).length)){
+  stepIndex = Math.min(savedStep, screens.length - 1);
+}
+render();
+if(Object.keys(answers).length){
+  setTimeout(() => {
+    saveText.textContent = 'Respuestas previas cargadas';
+    saveEl.classList.add('show');
+    setTimeout(() => saveEl.classList.remove('show'), 2800);
+  }, 1500);
+}
+</script>
+</body>
+</html>
