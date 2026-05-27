@@ -640,6 +640,8 @@ let answers = JSON.parse(localStorage.getItem(STORAGE_KEY + '-answers') || '{}')
 let audiosDone = JSON.parse(localStorage.getItem(STORAGE_KEY + '-audios') || '{}');
 let identity = JSON.parse(localStorage.getItem(STORAGE_KEY + '-identity') || '{}');
 let responseSaved = false; // evita inserts duplicados en Supabase
+let responseSending = false; // hay un envío en curso (evita envíos concurrentes)
+let sendPending = false; // llegó al final pero aún no se confirmó el envío (para avisar al cerrar)
 const savedStep = parseInt(localStorage.getItem(STORAGE_KEY + '-step') || '0', 10);
 const stage = document.getElementById('stage');
 const topbar = document.getElementById('topbar');
@@ -876,6 +878,7 @@ function render(){
           <h2 class="final-title">${fn.iconTitleHtml || 'Listo. <em>Gracias</em>.'}</h2>
           ${fn.text ? `<p class="final-text">${fn.text}</p>` : ''}
           <div class="final-actions">
+            <div id="send-status" class="send-status" aria-live="polite"></div>
             ${waBtn}
             <div class="secondary-actions">
               <button class="small-btn" onclick="exportPDF()">${ICONS.pdf} Descargar PDF</button>
@@ -1007,40 +1010,72 @@ function saveStep(){ localStorage.setItem(STORAGE_KEY + '-step', String(stepInde
 /* ============================================================
    SUPABASE (envío automático al finalizar)
    ============================================================ */
-async function saveToSupabase(){
-  if(!FORM || !FORM.id || responseSaved) return;
-  responseSaved = true; // marca antes del await para no duplicar si el final se re-renderiza
-  try{
-    const body = {
-      form_id: FORM.id,
-      respondent_name: identity.name || null,
-      respondent_email: identity.email || null,
-      respondent_whatsapp: identity.whatsapp || null,
-      submitted_at: new Date().toISOString(),
-      answers: answers,
-      audios: audiosDone,
-      user_agent: navigator.userAgent,
-    };
-    const res = await fetch(`${SUPABASE.url}/rest/v1/responses`, {
-      method:'POST',
-      headers:{
-        'apikey': SUPABASE.anonKey,
-        'Authorization': `Bearer ${SUPABASE.anonKey}`,
-        'Content-Type':'application/json',
-        'Prefer':'return=minimal'
-      },
-      body: JSON.stringify(body)
-    });
-    if(res.ok){
-      saveText.textContent = 'Enviado ✓';
-      saveEl.classList.add('show');
-      setTimeout(() => saveEl.classList.remove('show'), 3000);
-    } else {
-      responseSaved = false; // permití reintentar si falló
-      console.warn('Supabase responded', res.status, await res.text());
-    }
-  }catch(e){ responseSaved = false; console.warn('Supabase save failed', e); }
+// Muestra el estado del envío dentro de la pantalla final (no un toast efímero,
+// porque si el envío falla la persona DEBE enterarse y poder reintentar).
+function setSendStatus(state, attempt){
+  const box = document.getElementById('send-status');
+  if(!box) return;
+  if(state === 'sending'){
+    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;justify-content:center;font-size:13px;color:#9ca3af;margin-bottom:14px"><span style="width:6px;height:6px;border-radius:50%;background:#5dd39e;animation:ping 1.6s infinite;flex:0 0 auto"></span> Enviando tus respuestas…${attempt>1?` (intento ${attempt})`:''}</div>`;
+  } else if(state === 'sent'){
+    box.innerHTML = `<div style="text-align:center;font-size:13px;font-weight:600;color:#22c55e;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.30);border-radius:10px;padding:10px 14px;margin-bottom:14px">✓ Tus respuestas se enviaron correctamente.</div>`;
+  } else if(state === 'error'){
+    box.innerHTML = `<div style="text-align:center;font-size:13px;color:#fca5a5;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:12px 14px;margin-bottom:14px"><div style="font-weight:600;margin-bottom:6px">⚠️ No pudimos enviar tus respuestas</div><div style="opacity:.85;font-weight:400">Revisá tu conexión y reintentá. <b>No cierres esta página.</b></div><button class="card-cta primary" style="margin-top:12px;width:100%" onclick="saveToSupabase()">Reintentar envío</button></div>`;
+  }
 }
+
+async function saveToSupabase(){
+  if(!FORM || !FORM.id || responseSaved || responseSending) return;
+  responseSending = true;
+  sendPending = true;
+  const body = {
+    form_id: FORM.id,
+    respondent_name: identity.name || null,
+    respondent_email: identity.email || null,
+    respondent_whatsapp: identity.whatsapp || null,
+    submitted_at: new Date().toISOString(),
+    answers: answers,
+    audios: audiosDone,
+    user_agent: navigator.userAgent,
+  };
+  // Reintenta con backoff: 4 intentos antes de pedir acción manual.
+  const delays = [0, 1500, 4000, 8000];
+  for(let i = 0; i < delays.length; i++){
+    if(delays[i]) await new Promise(r => setTimeout(r, delays[i]));
+    setSendStatus('sending', i + 1);
+    try{
+      const res = await fetch(`${SUPABASE.url}/rest/v1/responses`, {
+        method:'POST',
+        headers:{
+          'apikey': SUPABASE.anonKey,
+          'Authorization': `Bearer ${SUPABASE.anonKey}`,
+          'Content-Type':'application/json',
+          'Prefer':'return=minimal'
+        },
+        body: JSON.stringify(body)
+      });
+      if(res.ok){
+        responseSaved = true;
+        responseSending = false;
+        sendPending = false;
+        setSendStatus('sent');
+        saveText.textContent = 'Enviado ✓';
+        saveEl.classList.add('show');
+        setTimeout(() => saveEl.classList.remove('show'), 3000);
+        return;
+      }
+      console.warn('Supabase responded', res.status, await res.text());
+    }catch(e){ console.warn('Supabase save failed', e); }
+  }
+  // Se agotaron los reintentos: avisá y dejá el botón de reintento visible.
+  responseSending = false;
+  setSendStatus('error');
+}
+
+// Si llegó al final y el envío aún no se confirmó, avisá antes de cerrar la pestaña.
+window.addEventListener('beforeunload', (e) => {
+  if(sendPending && !responseSaved){ e.preventDefault(); e.returnValue = ''; }
+});
 
 /* ============================================================
    EXPORT
