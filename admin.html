@@ -405,7 +405,7 @@ let B = null; // estado de edición { id, slug, title, subtitle, is_published, s
 
 async function viewBuilder(id){
   loading();
-  if(id){
+  if(id && id !== 'new'){
     const { data:form, error } = await sb.from('forms').select('*').eq('id',id).single();
     if(error||!form){ toast('No se encontró el formulario','err'); location.hash=''; return; }
     B = { id:form.id, slug:form.slug, title:form.title, subtitle:form.subtitle||'', is_published:form.is_published, schema: Object.assign(blankSchema(), form.schema||{}) };
